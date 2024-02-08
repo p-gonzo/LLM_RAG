@@ -10,6 +10,7 @@ langchain-openai = "*"
 gpt4all = "*"
 notebook = "*"
 chromadb = "*"
+sentence-transformers = "*"
 
 [dev-packages]
 
