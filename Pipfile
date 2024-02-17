@@ -11,6 +11,8 @@ gpt4all = "*"
 notebook = "*"
 chromadb = "*"
 sentence-transformers = "*"
+langchain-experimental = "*"
+lark = "*"
 
 [dev-packages]
 
