@@ -13,6 +13,7 @@ chromadb = "*"
 sentence-transformers = "*"
 langchain-experimental = "*"
 lark = "*"
+beautifulsoup4 = "*"
 
 [dev-packages]
 
