@@ -10,7 +10,7 @@ from langchain.chains import (
     ConversationalRetrievalChain,
 )
 from langchain.chat_models import ChatOpenAI
-
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.docstore.document import Document
 from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 from langchain.schema.runnable.config import RunnableConfig
@@ -61,14 +61,10 @@ async def on_chat_start():
         return_messages=True,
     )
 
-    # streaming_callback = cl.LangchainCallbackHandler(
-    #     stream_final_answer=True,
-    #     answer_prefix_tokens=["FINAL", "ANSWER"]
-    # )
-
+    cb = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, force_stream_final_answer=True)
     # Create a chain that uses the Chroma vector store
     chain = ConversationalRetrievalChain.from_llm(
-        ChatOpenAI(base_url="http://localhost:1234/v1", api_key="not-needed", temperature=0.7, max_tokens=1000, streaming=True),
+        ChatOpenAI(base_url="http://localhost:1234/v1", api_key="not-needed", temperature=0.7, max_tokens=1000, streaming=True, callbacks=[StreamingStdOutCallbackHandler(), cb]),
         chain_type="stuff",
         retriever=docsearch.as_retriever(),
         memory=memory,
@@ -79,46 +75,31 @@ async def on_chat_start():
     msg.content = f"Processing `{file.name}` done. You can now ask questions!"
     await msg.update()
 
-    cl.user_session.set("chain", chain | StrOutputParser())
+    cl.user_session.set("chain", chain)
 
 
 @cl.on_message
 async def main(message: cl.Message):
-    runnable = cl.user_session.get("chain")  # type: ConversationalRetrievalChain
+    chain = cl.user_session.get("chain")  # type: ConversationalRetrievalChain
+    cb = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, force_stream_final_answer=True)
+    res = await chain.acall(message.content, callbacks=[cb])
+    answer = res["answer"]
+    source_documents = res["source_documents"]  # type: List[Document]
 
-    msg = cl.Message(content="")
+    text_elements = []  # type: List[cl.Text]
 
-    async for chunk in runnable.astream(
-        {"question": message.content},
-        config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()]),
-    ):
-        await msg.stream_token(chunk)
+    if source_documents:
+        for source_idx, source_doc in enumerate(source_documents):
+            source_name = f"source_{source_idx}"
+            # Create the text element referenced in the message
+            text_elements.append(
+                cl.Text(content=source_doc.page_content, name=source_name)
+            )
+        source_names = [text_el.name for text_el in text_elements]
 
-    await msg.send()
+        if source_names:
+            answer += f"\nSources: {', '.join(source_names)}"
+        else:
+            answer += "\nNo sources found"
 
-    # streaming_callback = cl.LangchainCallbackHandler(
-    #     stream_final_answer=True,
-    #     answer_prefix_tokens=["FINAL", "ANSWER"]
-    # )
-
-    # res = await chain.ainvoke(message.content)
-    # answer = res["answer"]
-    # source_documents = res["source_documents"]  # type: List[Document]
-
-    # text_elements = []  # type: List[cl.Text]
-
-    # if source_documents:
-    #     for source_idx, source_doc in enumerate(source_documents):
-    #         source_name = f"source_{source_idx}"
-    #         # Create the text element referenced in the message
-    #         text_elements.append(
-    #             cl.Text(content=source_doc.page_content, name=source_name)
-    #         )
-    #     source_names = [text_el.name for text_el in text_elements]
-
-    #     if source_names:
-    #         answer += f"\nSources: {', '.join(source_names)}"
-    #     else:
-    #         answer += "\nNo sources found"
-
-    # await cl.Message(content=answer, elements=text_elements).send()
+    await cl.Message(content=answer, elements=text_elements).send()
