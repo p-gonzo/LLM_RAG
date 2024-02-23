@@ -14,6 +14,7 @@ sentence-transformers = "*"
 langchain-experimental = "*"
 lark = "*"
 beautifulsoup4 = "*"
+chainlit = "*"
 
 [dev-packages]
 
