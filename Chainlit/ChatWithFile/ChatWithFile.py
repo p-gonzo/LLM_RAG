@@ -16,6 +16,7 @@ from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 from langchain.schema.runnable.config import RunnableConfig
 
 import chainlit as cl
+import json
 
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
 
@@ -61,10 +62,10 @@ async def on_chat_start():
         return_messages=True,
     )
 
-    cb = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, force_stream_final_answer=True)
+    # cb = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, force_stream_final_answer=True)
     # Create a chain that uses the Chroma vector store
     chain = ConversationalRetrievalChain.from_llm(
-        ChatOpenAI(base_url="http://localhost:1234/v1", api_key="not-needed", temperature=0.7, max_tokens=1000, streaming=True, callbacks=[StreamingStdOutCallbackHandler(), cb]),
+        ChatOpenAI(base_url="http://localhost:1234/v1", api_key="not-needed", temperature=0.7, max_tokens=1000, streaming=True) | StrOutputParser(),
         chain_type="stuff",
         retriever=docsearch.as_retriever(),
         memory=memory,
@@ -80,7 +81,7 @@ async def on_chat_start():
 
 @cl.on_message
 async def main(message: cl.Message):
-    chain = cl.user_session.get("chain")  # type: ConversationalRetrievalChain
+    chain = cl.user_session.get("chain")  # type: ConversationalRetrievalChain        
     cb = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, force_stream_final_answer=True)
     res = await chain.acall(message.content, callbacks=[cb])
     answer = res["answer"]

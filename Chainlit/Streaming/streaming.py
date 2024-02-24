@@ -8,7 +8,6 @@ from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 
 import chainlit as cl
 
-
 @cl.on_chat_start
 async def on_chat_start():
     model = ChatOpenAI(base_url="http://localhost:1234/v1", api_key="not-needed", temperature=0.7, max_tokens=1000, streaming=True)
@@ -28,13 +27,9 @@ async def on_chat_start():
 @cl.on_message
 async def on_message(message: cl.Message):
     runnable = cl.user_session.get("runnable")  # type: Runnable
-
     msg = cl.Message(content="")
 
-    async for chunk in runnable.astream(
-        {"question": message.content},
-        config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()]),
-    ):
+    async for chunk in runnable.astream({"question": message.content}, config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()])):
         await msg.stream_token(chunk)
 
     await msg.send()
